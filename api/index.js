@@ -1,16 +1,35 @@
 const serverless = require('serverless-http')
 const { createApp } = require('../src/app')
 
-let handlerPromise = null
+let handler = null
+let initError = null
 
 async function getHandler() {
-  if (!handlerPromise) {
-    handlerPromise = createApp().then((app) => serverless(app))
+  if (initError) throw initError
+  if (handler) return handler
+
+  try {
+    const app = await createApp()
+    handler = serverless(app, {
+      binary: ['image/*', 'application/octet-stream'],
+    })
+    return handler
+  } catch (err) {
+    initError = err
+    console.error('Falha ao iniciar backend:', err)
+    throw err
   }
-  return handlerPromise
 }
 
 module.exports = async (req, res) => {
-  const handler = await getHandler()
-  return handler(req, res)
+  try {
+    const fn = await getHandler()
+    return fn(req, res)
+  } catch (err) {
+    console.error('FUNCTION_INVOCATION_FAILED:', err)
+    res.status(500).json({
+      error: err.message || 'Erro ao iniciar o servidor',
+      hint: 'Verifique MONGODB_URI, JWT_SECRET e logs na Vercel.',
+    })
+  }
 }

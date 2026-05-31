@@ -27,10 +27,21 @@ function buildCorsOptions() {
         callback(null, true)
         return
       }
-      callback(new Error('Not allowed by CORS'))
+      callback(null, false)
     },
     credentials: true,
   }
+}
+
+/** Vercel rewrite para /api — normaliza path para rotas Express na raiz. */
+function stripApiPrefix(req, res, next) {
+  const url = req.url || ''
+  if (url === '/api' || url === '/api/') {
+    req.url = '/'
+  } else if (url.startsWith('/api/')) {
+    req.url = url.slice(4) || '/'
+  }
+  next()
 }
 
 async function createApp() {
@@ -38,11 +49,12 @@ async function createApp() {
 
   const app = express()
 
+  app.use(stripApiPrefix)
   app.use(cors(buildCorsOptions()))
   app.use(express.json())
 
   app.get('/health', (req, res) => {
-    res.json({ status: 'ok' })
+    res.json({ status: 'ok', env: process.env.VERCEL ? 'vercel' : 'local' })
   })
 
   app.use('/auth', authRoutes)
