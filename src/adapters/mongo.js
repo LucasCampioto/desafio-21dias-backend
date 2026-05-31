@@ -40,10 +40,12 @@ async function connectMongo() {
         )
       }
 
+      const timeoutMs = process.env.VERCEL ? 5000 : 15000
+
       const mongoClient = new MongoClient(config.mongodbUri, {
         maxPoolSize: 10,
-        serverSelectionTimeoutMS: 15000,
-        connectTimeoutMS: 15000,
+        serverSelectionTimeoutMS: timeoutMs,
+        connectTimeoutMS: timeoutMs,
       })
 
       await mongoClient.connect()

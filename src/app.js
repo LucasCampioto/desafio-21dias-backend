@@ -44,8 +44,27 @@ function stripApiPrefix(req, res, next) {
   next()
 }
 
+function validateVercelEnv() {
+  if (!process.env.VERCEL) return
+
+  if (!config.jwtSecret || config.jwtSecret === 'dev-secret-change-in-production') {
+    throw new Error(
+      'JWT_SECRET inválido ou ausente. Configure um segredo forte nas envs da Vercel.',
+    )
+  }
+}
+
+async function ensureMongoConnected(req, res, next) {
+  try {
+    await connectMongo()
+    next()
+  } catch (err) {
+    next(err)
+  }
+}
+
 async function createApp() {
-  await connectMongo()
+  validateVercelEnv()
 
   const app = express()
 
@@ -56,6 +75,8 @@ async function createApp() {
   app.get('/health', (req, res) => {
     res.json({ status: 'ok', env: process.env.VERCEL ? 'vercel' : 'local' })
   })
+
+  app.use(ensureMongoConnected)
 
   app.use('/auth', authRoutes)
   app.use('/sessions', sessionsRoutes)

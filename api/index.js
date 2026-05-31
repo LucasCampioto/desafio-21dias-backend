@@ -4,6 +4,11 @@ const { createApp } = require('../src/app')
 let handler = null
 let initError = null
 
+function isHealthCheck(req) {
+  const path = (req.url || '').split('?')[0]
+  return path === '/health' || path === '/api/health'
+}
+
 async function getHandler() {
   if (initError) throw initError
   if (handler) return handler
@@ -22,6 +27,10 @@ async function getHandler() {
 }
 
 module.exports = async (req, res) => {
+  if (isHealthCheck(req)) {
+    return res.status(200).json({ status: 'ok', env: 'vercel' })
+  }
+
   try {
     const fn = await getHandler()
     return fn(req, res)
