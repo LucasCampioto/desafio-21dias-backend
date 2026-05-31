@@ -63,7 +63,7 @@ async function ensureMongoConnected(req, res, next) {
   }
 }
 
-async function createApp() {
+function createApp() {
   validateVercelEnv()
 
   const app = express()
