@@ -7,6 +7,7 @@ const config = {
   agentsUrl: process.env.AGENTS_URL || 'http://localhost:8000',
   agentsApiKey: process.env.AGENTS_API_KEY || '',
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5174',
+  corsAllowVercelPreviews: process.env.CORS_ALLOW_VERCEL_PREVIEWS === 'true',
 }
 
 module.exports = config

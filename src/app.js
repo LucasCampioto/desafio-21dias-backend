@@ -3,6 +3,7 @@ const cors = require('cors')
 const config = require('./config')
 const { connectMongo } = require('./adapters/mongo')
 const { errorHandler } = require('./middleware/errorHandler')
+const { buildCorsOptions, attachCorsOrigin } = require('./cors')
 
 const authRoutes = require('./routes/auth')
 const sessionsRoutes = require('./routes/sessions')
@@ -10,28 +11,6 @@ const daysRoutes = require('./routes/days')
 const muralRoutes = require('./routes/mural')
 const assistantRoutes = require('./routes/assistant')
 const evolutionRoutes = require('./routes/evolution')
-
-function parseCorsOrigins() {
-  return config.corsOrigin
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean)
-}
-
-function buildCorsOptions() {
-  const allowedOrigins = parseCorsOrigins()
-
-  return {
-    origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true)
-        return
-      }
-      callback(null, false)
-    },
-    credentials: true,
-  }
-}
 
 /** Vercel rewrite para /api — normaliza path para rotas Express na raiz. */
 function stripApiPrefix(req, res, next) {
@@ -55,6 +34,11 @@ function validateVercelEnv() {
 }
 
 async function ensureMongoConnected(req, res, next) {
+  if (req.method === 'OPTIONS') {
+    next()
+    return
+  }
+
   try {
     await connectMongo()
     next()
@@ -69,7 +53,8 @@ function createApp() {
   const app = express()
 
   app.use(stripApiPrefix)
-  app.use(cors(buildCorsOptions()))
+  app.use(cors(buildCorsOptions(config)))
+  app.use(attachCorsOrigin(config))
   app.use(express.json())
 
   app.get('/health', (req, res) => {
