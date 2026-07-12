@@ -1,6 +1,6 @@
 const config = require('../config')
 
-const AGENTS_TIMEOUT_MS = Number(process.env.AGENTS_TIMEOUT_MS) || 55_000
+const AGENTS_TIMEOUT_MS = Number(process.env.AGENTS_TIMEOUT_MS) || 110_000
 
 async function agentsFetch(path, options = {}) {
   const url = `${config.agentsUrl}${path}`
