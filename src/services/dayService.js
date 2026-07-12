@@ -1,7 +1,7 @@
 const { ObjectId } = require('mongodb')
 const { getDb } = require('../adapters/mongo')
 const { getSessionById, getSessionProgress, completeSession } = require('./sessionService')
-const { canAccessDay } = require('./dayAccessService')
+const { canAccessDay, isJourneyComplete } = require('./dayAccessService')
 const { analyzeDay } = require('./agentsClient')
 const { aggregateSession } = require('./metricsService')
 
@@ -45,7 +45,7 @@ async function saveDayAnswers(userId, sessionId, dayId, answers) {
   await db.collection('day_answers').updateOne(
     filter,
     { $set: { answers, updatedAt: now }, $setOnInsert: filter },
-    { upsert: true }
+    { upsert: true },
   )
 
   return answers
@@ -69,20 +69,25 @@ async function markDayComplete(userId, sessionId, dayId) {
     const updated = [...completedDays, numericDayId].sort((a, b) => a - b)
     await db.collection('session_progress').updateOne(
       { sessionId: new ObjectId(sessionId) },
-      { $set: { completedDays: updated } }
+      { $set: { completedDays: updated } },
     )
     progress.completedDays = updated
   }
 
-  // Dispara AnalyzeDay e agrega métricas (não bloqueia resposta em caso de falha do agents)
+  // AnalyzeDay pode falhar; métricas devem ser agregadas mesmo assim.
   try {
     await analyzeDay(userId, sessionId, numericDayId)
-    await aggregateSession(userId, sessionId)
   } catch (err) {
-    console.error('Erro ao analisar dia / agregar métricas:', err.message)
+    console.error('Erro ao analisar dia:', err.message)
   }
 
-  if (progress.completedDays.length >= 21) {
+  try {
+    await aggregateSession(userId, sessionId)
+  } catch (err) {
+    console.error('Erro ao agregar métricas:', err.message)
+  }
+
+  if (isJourneyComplete(progress)) {
     await completeSession(sessionId)
   }
 

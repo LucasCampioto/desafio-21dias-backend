@@ -42,9 +42,21 @@ function canAccessDay(dayId, session, progress) {
   return getDayStatus(dayId, session, progress) !== 'locked'
 }
 
+/** Jornada completa quando todos os dias do intervalo [startDay, 21] estão concluídos. */
+function isJourneyComplete(progress) {
+  const startDay = Number(progress?.startDay) || 1
+  const completed = new Set(progress?.completedDays || [])
+  if (completed.has(21)) return true
+  for (let dayId = startDay; dayId <= 21; dayId++) {
+    if (!completed.has(dayId)) return false
+  }
+  return true
+}
+
 module.exports = {
   getEffectiveDayIndex,
   getCurrentActiveDay,
   getDayStatus,
   canAccessDay,
+  isJourneyComplete,
 }

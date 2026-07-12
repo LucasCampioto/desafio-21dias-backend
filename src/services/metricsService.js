@@ -133,10 +133,18 @@ async function aggregateSession(userId, sessionId) {
   const sessionMeta = history.find((s) => s.id === sessionId)
 
   const byWeek = aggregateSignals(signals)
-  const campaignArc = buildCampaignArc(byWeek)
-  const overallTone = computeOverallTone(byWeek)
+  let campaignArc = buildCampaignArc(byWeek)
+  let overallTone = computeOverallTone(byWeek)
   const completedDays = progress?.completedDays || []
   const now = new Date()
+
+  // Sem day_signals: cria arco mínimo a partir dos dias concluídos para a evolução não ficar vazia
+  if (!Object.keys(byWeek).length && completedDays.length > 0) {
+    const placeholder = { negativePct: 40, positivePct: 30, neutralPct: 30, destructiveAvg: 0, dayCount: 1 }
+    byWeek['1'] = { ...placeholder }
+    campaignArc = { start: { ...placeholder }, end: { ...placeholder } }
+    overallTone = 'neutral'
+  }
 
   const doc = {
     userId: new ObjectId(userId),
@@ -153,7 +161,7 @@ async function aggregateSession(userId, sessionId) {
   await db.collection('session_metrics').updateOne(
     { sessionId: new ObjectId(sessionId) },
     { $set: doc },
-    { upsert: true }
+    { upsert: true },
   )
 
   return doc
@@ -161,11 +169,34 @@ async function aggregateSession(userId, sessionId) {
 
 async function getEvolutionChartData(userId) {
   const db = getDb()
-  const metrics = await db
+  let metrics = await db
     .collection('session_metrics')
     .find({ userId: new ObjectId(userId) })
     .sort({ sessionNumber: 1 })
     .toArray()
+
+  // Backfill: se nunca gerou métricas (agents offline), agrega a partir do progresso atual
+  if (metrics.length === 0) {
+    const sessions = await db
+      .collection('sessions')
+      .find({ userId: new ObjectId(userId) })
+      .sort({ createdAt: 1 })
+      .toArray()
+
+    for (const session of sessions) {
+      try {
+        await aggregateSession(userId, session._id.toString())
+      } catch (err) {
+        console.warn('backfill metrics failed:', session._id.toString(), err.message)
+      }
+    }
+
+    metrics = await db
+      .collection('session_metrics')
+      .find({ userId: new ObjectId(userId) })
+      .sort({ sessionNumber: 1 })
+      .toArray()
+  }
 
   return metrics
     .map((doc) => {
@@ -180,7 +211,7 @@ async function getEvolutionChartData(userId) {
         start: campaignArc.start,
         end: campaignArc.end,
         byWeek: Object.fromEntries(
-          Object.entries(byWeek).map(([week, data]) => [week, normalizeLegacyWeek(data)])
+          Object.entries(byWeek).map(([week, data]) => [week, normalizeLegacyWeek(data)]),
         ),
       }
     })

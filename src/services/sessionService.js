@@ -1,5 +1,6 @@
 const { ObjectId } = require('mongodb')
 const { getDb } = require('../adapters/mongo')
+const { isJourneyComplete } = require('./dayAccessService')
 
 function weekLabelForStartDay(startDay) {
   if (startDay === 1) return 'Semana 1 — Observação'
@@ -19,7 +20,62 @@ function formatSession(session) {
   }
 }
 
+async function completeSession(sessionId) {
+  const db = getDb()
+  await db.collection('sessions').updateOne(
+    { _id: new ObjectId(sessionId) },
+    { $set: { status: 'completed', completedAt: new Date() } },
+  )
+}
+
+/**
+ * Corrige sessões que já cumpriram todos os dias mas ficaram como `active`
+ * (ex.: ao iniciar outra jornada sem fechar a anterior).
+ */
+async function reconcileUserSessions(userId) {
+  const db = getDb()
+  const uid = new ObjectId(userId)
+  const activeSessions = await db
+    .collection('sessions')
+    .find({ userId: uid, status: 'active' })
+    .sort({ createdAt: 1 })
+    .toArray()
+
+  if (activeSessions.length === 0) return
+
+  for (const session of activeSessions) {
+    const progress = await db.collection('session_progress').findOne({
+      sessionId: session._id,
+    })
+    if (progress && isJourneyComplete(progress)) {
+      await completeSession(session._id)
+    }
+  }
+
+  // Mantém no máximo uma sessão active: fecha as mais antigas se o usuário já avançou.
+  const stillActive = await db
+    .collection('sessions')
+    .find({ userId: uid, status: 'active' })
+    .sort({ createdAt: 1 })
+    .toArray()
+
+  if (stillActive.length <= 1) return
+
+  const newest = stillActive[stillActive.length - 1]
+  for (const session of stillActive) {
+    if (session._id.equals(newest._id)) continue
+    const progress = await db.collection('session_progress').findOne({
+      sessionId: session._id,
+    })
+    if (progress && (isJourneyComplete(progress) || (progress.completedDays || []).length > 0)) {
+      await completeSession(session._id)
+    }
+  }
+}
+
 async function getSessionsHistory(userId) {
+  await reconcileUserSessions(userId)
+
   const db = getDb()
   const sessions = await db
     .collection('sessions')
@@ -31,11 +87,16 @@ async function getSessionsHistory(userId) {
 }
 
 async function getActiveSession(userId) {
+  await reconcileUserSessions(userId)
+
   const db = getDb()
-  const session = await db.collection('sessions').findOne({
-    userId: new ObjectId(userId),
-    status: 'active',
-  })
+  const session = await db.collection('sessions').findOne(
+    {
+      userId: new ObjectId(userId),
+      status: 'active',
+    },
+    { sort: { createdAt: -1 } },
+  )
 
   return session ? formatSession(session) : null
 }
@@ -86,29 +147,20 @@ async function getSessionProgress(userId, sessionId) {
   }
 }
 
-async function completeSession(sessionId) {
-  const db = getDb()
-  await db.collection('sessions').updateOne(
-    { _id: new ObjectId(sessionId) },
-    { $set: { status: 'completed', completedAt: new Date() } }
-  )
-}
-
 async function createSession(userId, startDay = 1) {
-  const db = getDb()
-  const active = await getActiveSession(userId)
+  await reconcileUserSessions(userId)
 
+  const active = await getActiveSession(userId)
   if (active) {
-    const progress = await getSessionProgress(userId, active.id)
-    if (progress.completedDays.length >= 21) {
-      await completeSession(active.id)
-    }
+    // Nova jornada: encerra a anterior para não ficarem duas "Em andamento"
+    await completeSession(active.id)
   }
 
   const history = await getSessionsHistory(userId)
   const sessionNumber = history.length + 1
   const now = new Date()
   const parsedStartDay = Number(startDay) || 1
+  const db = getDb()
 
   const sessionDoc = {
     userId: new ObjectId(userId),
@@ -160,4 +212,5 @@ module.exports = {
   completeSession,
   deleteSession,
   formatSession,
+  reconcileUserSessions,
 }
