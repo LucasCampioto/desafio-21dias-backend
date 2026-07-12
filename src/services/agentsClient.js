@@ -22,7 +22,17 @@ async function agentsFetch(path, options = {}) {
 
     if (!response.ok) {
       const text = await response.text()
-      const err = new Error(`Agents service error: ${response.status} ${text}`)
+      let detail = text
+      try {
+        const parsed = JSON.parse(text)
+        detail = parsed.detail || parsed.error || parsed.message || text
+        if (Array.isArray(detail)) {
+          detail = detail.map((item) => item.msg || JSON.stringify(item)).join('; ')
+        }
+      } catch {
+        // body não-JSON (HTML da Vercel etc.)
+      }
+      const err = new Error(`Agents service error: ${response.status} ${detail}`)
       err.status = response.status >= 500 ? 502 : response.status
       throw err
     }
