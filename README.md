@@ -21,9 +21,40 @@ O servidor sobe em `http://localhost:3000`.
 
 ## Deploy na Vercel
 
-Configuração pronta: `vercel.json`, `api/index.js` (serverless) e `src/app.js`.
+Configuração pronta: `vercel.json` (rewrite → `/api`) e `api/index.js` exporta o app Express diretamente (sem `serverless-http`).
 
 Guia completo (3 projetos + envs): [`../DEPLOY-VERCEL.md`](../DEPLOY-VERCEL.md)
+
+### Variáveis obrigatórias (Production)
+
+| Variável | Descrição |
+|----------|-----------|
+| `MONGODB_URI` | URI do MongoDB Atlas (`mongodb+srv://...`) — **não** use `localhost` |
+| `JWT_SECRET` | Segredo longo e aleatório — **não** use o default `dev-secret-change-in-production` |
+| `AGENTS_URL` | URL do deploy agents (ex.: `https://seu-agents.vercel.app`) |
+| `AGENTS_API_KEY` | Mesma chave configurada no projeto agents |
+| `CORS_ORIGIN` | URL **exata** do frontend, sem barra final (ex.: `https://desafio-21dias.vercel.app`). Várias origens: separar por vírgula. Wildcard para previews: `https://*.vercel.app` |
+| `CORS_ALLOW_VERCEL_PREVIEWS` | Opcional: `true` para aceitar qualquer origem `https://*.vercel.app` (branch previews) |
+
+### MongoDB Atlas
+
+Em **Network Access**, permita `0.0.0.0/0` (ou IPs da Vercel) para o cluster aceitar conexões serverless.
+
+### Teste após deploy
+
+1. `GET https://SEU-BACKEND.vercel.app/health` → `{"status":"ok","env":"vercel"}` (sem Mongo)
+2. Depois teste login ou outra rota que use o banco
+
+O endpoint `/health` responde antes de conectar ao MongoDB; falhas de env ou Atlas aparecem nas demais rotas com JSON de erro (timeout ~5s na Vercel).
+
+### CORS em produção
+
+Se o browser mostra **CORS error** no Network tab:
+
+1. Confirme `CORS_ORIGIN` na Vercel = URL exata do frontend (ex.: `https://desafio-21dias.vercel.app`)
+2. Confirme `VITE_API_URL` no frontend = URL do backend sem barra (ex.: `https://desafio-21dias-backend.vercel.app`)
+3. Para branch previews, adicione `https://*.vercel.app` em `CORS_ORIGIN` ou defina `CORS_ALLOW_VERCEL_PREVIEWS=true`
+4. Origens rejeitadas são logadas com `[CORS] Origin rejected:` nos logs da Vercel
 
 ## Variáveis de ambiente
 
@@ -34,7 +65,8 @@ Guia completo (3 projetos + envs): [`../DEPLOY-VERCEL.md`](../DEPLOY-VERCEL.md)
 | `JWT_SECRET` | Segredo para tokens JWT |
 | `AGENTS_URL` | URL do serviço FastAPI de agentes |
 | `AGENTS_API_KEY` | Chave compartilhada backend ↔ agents |
-| `CORS_ORIGIN` | Origem permitida do frontend |
+| `CORS_ORIGIN` | Origem permitida do frontend (URL exata, sem barra final; vírgula para várias; `https://*.vercel.app` para wildcard) |
+| `CORS_ALLOW_VERCEL_PREVIEWS` | Se `true`, aceita qualquer subdomínio `*.vercel.app` |
 
 ## Endpoints
 

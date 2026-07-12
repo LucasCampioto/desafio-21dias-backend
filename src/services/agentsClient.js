@@ -1,5 +1,7 @@
 const config = require('../config')
 
+const AGENTS_TIMEOUT_MS = Number(process.env.AGENTS_TIMEOUT_MS) || 55_000
+
 async function agentsFetch(path, options = {}) {
   const url = `${config.agentsUrl}${path}`
   const headers = {
@@ -8,16 +10,36 @@ async function agentsFetch(path, options = {}) {
     ...options.headers,
   }
 
-  const response = await fetch(url, { ...options, headers })
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), AGENTS_TIMEOUT_MS)
 
-  if (!response.ok) {
-    const text = await response.text()
-    const err = new Error(`Agents service error: ${response.status} ${text}`)
-    err.status = response.status
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    })
+
+    if (!response.ok) {
+      const text = await response.text()
+      const err = new Error(`Agents service error: ${response.status} ${text}`)
+      err.status = response.status >= 500 ? 502 : response.status
+      throw err
+    }
+
+    return response
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      const timeoutErr = new Error(
+        'O serviço de IA demorou demais para responder. Tente novamente em alguns segundos.',
+      )
+      timeoutErr.status = 504
+      throw timeoutErr
+    }
     throw err
+  } finally {
+    clearTimeout(timeoutId)
   }
-
-  return response
 }
 
 async function analyzeDay(userId, sessionId, dayId) {
