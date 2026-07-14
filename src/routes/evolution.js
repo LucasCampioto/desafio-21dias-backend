@@ -13,8 +13,8 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000
 
 router.get('/charts', async (req, res, next) => {
   try {
-    const campaigns = await getEvolutionChartData(req.userId)
-    res.json({ campaigns })
+    const data = await getEvolutionChartData(req.userId)
+    res.json(data)
   } catch (err) {
     next(err)
   }

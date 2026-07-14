@@ -39,14 +39,50 @@ function getDayById(dayId) {
   return loadDays().find((d) => d.id === Number(dayId)) ?? null
 }
 
+function unwrapAnswersBlob(answersBlob) {
+  if (!answersBlob || typeof answersBlob !== 'object' || Array.isArray(answersBlob)) {
+    return {}
+  }
+
+  const nested = answersBlob.answers
+  if (
+    nested &&
+    typeof nested === 'object' &&
+    !Array.isArray(nested) &&
+    Object.values(nested).every((v) => typeof v === 'string' || Array.isArray(v))
+  ) {
+    return nested
+  }
+
+  return answersBlob
+}
+
 function normalizeText(raw) {
   if (raw == null) return ''
-  if (Array.isArray(raw)) return raw.filter(Boolean).join('; ')
-  return String(raw).replace(/\s+/g, ' ').trim()
+  if (typeof raw === 'string') return raw.replace(/\s+/g, ' ').trim()
+  if (typeof raw === 'number' || typeof raw === 'boolean') return String(raw)
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => normalizeText(item))
+      .filter(Boolean)
+      .join('; ')
+  }
+  if (typeof raw === 'object') {
+    // Nunca usar String(obj) → "[object Object]"
+    if (typeof raw.text === 'string') return normalizeText(raw.text)
+    if (typeof raw.content === 'string') return normalizeText(raw.content)
+    if (typeof raw.quote === 'string') return normalizeText(raw.quote)
+    return Object.values(raw)
+      .map((item) => normalizeText(item))
+      .filter(Boolean)
+      .join('; ')
+  }
+  return ''
 }
 
 function shortQuote(text, max = MAX_QUOTE) {
   const t = normalizeText(text)
+  if (!t || t.includes('[object Object]')) return ''
   if (t.length <= max) return t
   return `${t.slice(0, max - 1).trim()}…`
 }
@@ -129,7 +165,7 @@ async function buildPresenceInput(userId, dateKey) {
   for (const doc of answers) {
     const dayId = doc.dayId
     const dayMeta = getDayById(dayId)
-    const answersMap = doc.answers ?? {}
+    const answersMap = unwrapAnswersBlob(doc.answers ?? {})
 
     if (dayMeta?.declaration) {
       candidates.push({
@@ -273,6 +309,10 @@ function emptyJourneySlot(period) {
 function validateAiSlot(slot, candidates) {
   if (!slot?.quote || !slot?.body) return false
   const quote = normalizeText(slot.quote)
+  const body = normalizeText(slot.body)
+  if (!quote || !body || quote.includes('[object Object]') || body.includes('[object Object]')) {
+    return false
+  }
   const match = candidates.some((c) => normalizeText(c.quote).includes(quote) || quote.includes(normalizeText(c.quote)))
   if (!match) return false
   if (slot.source?.type === 'day_answer') {

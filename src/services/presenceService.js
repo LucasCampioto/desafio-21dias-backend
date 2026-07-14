@@ -13,13 +13,25 @@ const { TIMEZONE, buildSlotTimes, spDateKey } = require('./presenceTime')
 const PERIODS = ['morning', 'afternoon', 'evening']
 const PERIOD_RANK = { morning: 0, afternoon: 1, evening: 2 }
 
+function asDisplayText(value) {
+  if (value == null) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (typeof value === 'object') {
+    if (typeof value.text === 'string') return value.text
+    if (typeof value.content === 'string') return value.content
+    if (typeof value.quote === 'string') return value.quote
+  }
+  return ''
+}
+
 function mapActiveSlot(slot) {
   return {
     slotId: slot.slotId,
     period: slot.period,
-    title: slot.title,
-    body: slot.body,
-    quote: slot.quote,
+    title: asDisplayText(slot.title),
+    body: asDisplayText(slot.body),
+    quote: asDisplayText(slot.quote),
     source: slot.source,
     startAt: slot.startAt,
     endAt: slot.endAt,
@@ -90,6 +102,15 @@ function buildFallbackSlots(input, times, dateKey) {
   })
 }
 
+function slotLooksCorrupt(slot) {
+  const haystack = `${slot?.body ?? ''} ${slot?.quote ?? ''} ${slot?.title ?? ''}`
+  return haystack.includes('[object Object]')
+}
+
+function remindersLookCorrupt(doc) {
+  return Boolean(doc?.slots?.some(slotLooksCorrupt))
+}
+
 async function ensureDailyReminders(userId, now = new Date()) {
   const dateKey = spDateKey(now)
   const db = getDb()
@@ -99,7 +120,11 @@ async function ensureDailyReminders(userId, now = new Date()) {
     date: dateKey,
   })
 
-  if (existing) return existing
+  if (existing && !remindersLookCorrupt(existing)) return existing
+
+  if (existing && remindersLookCorrupt(existing)) {
+    await db.collection('user_daily_reminders').deleteOne({ _id: existing._id })
+  }
 
   const input = await buildPresenceInput(userId, dateKey)
   const times = buildSlotTimes(userId, dateKey)
@@ -114,6 +139,11 @@ async function ensureDailyReminders(userId, now = new Date()) {
       slots = buildFallbackSlots(input, times, dateKey)
     }
   } else {
+    slots = buildFallbackSlots(input, times, dateKey)
+  }
+
+  // Se a IA ainda devolver objeto mal serializado, força fallback limpo.
+  if (slots.some(slotLooksCorrupt)) {
     slots = buildFallbackSlots(input, times, dateKey)
   }
 

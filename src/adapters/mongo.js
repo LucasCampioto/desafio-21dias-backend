@@ -1,3 +1,4 @@
+const dns = require('dns')
 const { MongoClient } = require('mongodb')
 const config = require('../config')
 
@@ -6,6 +7,17 @@ const globalCache = global
 let client = null
 let db = null
 let connectPromise = null
+
+/** No Windows, o DNS local (roteador) às vezes recusa querySrv do Node para mongodb+srv. */
+function ensureSrvFriendlyDns() {
+  if (process.platform !== 'win32') return
+  if (!String(config.mongodbUri || '').startsWith('mongodb+srv://')) return
+
+  const preferred = ['8.8.8.8', '1.1.1.1']
+  const current = dns.getServers()
+  const merged = [...preferred, ...current.filter((s) => !preferred.includes(s))]
+  dns.setServers(merged)
+}
 
 async function ensureIndexes(database) {
   try {
@@ -41,6 +53,7 @@ async function connectMongo() {
       }
 
       const timeoutMs = process.env.VERCEL ? 5000 : 15000
+      ensureSrvFriendlyDns()
 
       const mongoClient = new MongoClient(config.mongodbUri, {
         maxPoolSize: 10,
