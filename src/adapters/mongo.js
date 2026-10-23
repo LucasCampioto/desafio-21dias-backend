@@ -26,6 +26,7 @@ async function ensureIndexes(database) {
     await database.collection('session_progress').createIndex({ sessionId: 1 }, { unique: true })
     await database.collection('day_answers').createIndex({ sessionId: 1, dayId: 1 }, { unique: true })
     await database.collection('mural_cards').createIndex({ userId: 1 })
+    await database.collection('weekly_goals').createIndex({ userId: 1, weekStart: 1 })
     await database.collection('day_signals').createIndex({ sessionId: 1, dayId: 1 }, { unique: true })
     await database.collection('session_metrics').createIndex({ sessionId: 1 }, { unique: true })
     await database.collection('evolution_reports').createIndex({ userId: 1 }, { unique: true })

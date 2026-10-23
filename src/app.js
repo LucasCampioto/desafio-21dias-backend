@@ -9,6 +9,7 @@ const authRoutes = require('./routes/auth')
 const sessionsRoutes = require('./routes/sessions')
 const daysRoutes = require('./routes/days')
 const muralRoutes = require('./routes/mural')
+const goalsRoutes = require('./routes/goals')
 const assistantRoutes = require('./routes/assistant')
 const evolutionRoutes = require('./routes/evolution')
 
@@ -67,6 +68,7 @@ function createApp() {
   app.use('/sessions', sessionsRoutes)
   app.use('/sessions/:id/days', daysRoutes)
   app.use('/mural', muralRoutes)
+  app.use('/goals', goalsRoutes)
   app.use('/assistant', assistantRoutes)
   app.use('/evolution', evolutionRoutes)
 
