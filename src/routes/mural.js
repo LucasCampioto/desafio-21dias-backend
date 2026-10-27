@@ -27,8 +27,8 @@ router.get('/cards', async (req, res, next) => {
 
 router.post('/cards', async (req, res, next) => {
   try {
-    const { text } = req.body
-    const card = await muralService.createCard(req.userId, text)
+    const { text, title } = req.body
+    const card = await muralService.createCard(req.userId, text, title)
     res.status(201).json(card)
   } catch (err) {
     next(err)

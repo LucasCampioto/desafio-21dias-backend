@@ -1,12 +1,29 @@
 const { ObjectId } = require('mongodb')
 const { getDb } = require('../adapters/mongo')
 
-const DEFAULT_CARD_SIZE = { width: 192, height: 120 }
+const DEFAULT_CARD_SIZE = { width: 192, height: 140 }
 
 const DEFAULT_CARDS = [
-  { text: 'Eu tenho sucesso', color: '#D4F268', x: 40, y: 60, fontSize: 16, ...DEFAULT_CARD_SIZE },
-  { text: 'Eu sou abundante', color: '#EBC8D6', x: 220, y: 120, fontSize: 18, ...DEFAULT_CARD_SIZE },
   {
+    title: 'Sucesso',
+    text: 'Eu tenho sucesso',
+    color: '#D4F268',
+    x: 40,
+    y: 60,
+    fontSize: 16,
+    ...DEFAULT_CARD_SIZE,
+  },
+  {
+    title: 'Abundância',
+    text: 'Eu sou abundante',
+    color: '#EBC8D6',
+    x: 220,
+    y: 120,
+    fontSize: 18,
+    ...DEFAULT_CARD_SIZE,
+  },
+  {
+    title: 'Empresas',
     text: 'Eu construo empresas multimilionárias',
     color: '#C4C9D9',
     x: 80,
@@ -19,6 +36,7 @@ const DEFAULT_CARDS = [
 function formatCard(card) {
   return {
     id: card._id.toString(),
+    title: typeof card.title === 'string' ? card.title : '',
     text: card.text,
     color: card.color,
     x: card.x,
@@ -53,10 +71,11 @@ async function getMuralCards(userId) {
   return cards.map(formatCard)
 }
 
-async function createCard(userId, text = 'Nova afirmação') {
+async function createCard(userId, text = 'Nova afirmação', title = '') {
   const db = getDb()
   const doc = {
     userId: new ObjectId(userId),
+    title: typeof title === 'string' ? title.trim() : '',
     text,
     color: '#FBFCD4',
     x: 100 + Math.random() * 200,
@@ -73,6 +92,9 @@ async function createCard(userId, text = 'Nova afirmação') {
 async function updateCard(userId, cardId, updates) {
   const db = getDb()
   const allowed = {}
+  if (updates.title !== undefined) {
+    allowed.title = typeof updates.title === 'string' ? updates.title : ''
+  }
   if (updates.text !== undefined) allowed.text = updates.text
   if (updates.color !== undefined) allowed.color = updates.color
   if (updates.x !== undefined) allowed.x = updates.x
