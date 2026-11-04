@@ -8,8 +8,8 @@ router.use(authMiddleware)
 
 router.get('/', async (req, res, next) => {
   try {
-    const goals = await goalsService.getGoals(req.userId)
-    res.json({ goals })
+    const data = await goalsService.getGoals(req.userId, req.query.weekStart)
+    res.json(data)
   } catch (err) {
     next(err)
   }
@@ -26,8 +26,13 @@ router.post('/', async (req, res, next) => {
 
 router.patch('/:id', async (req, res, next) => {
   try {
-    const { done, text } = req.body || {}
-    const goal = await goalsService.updateGoal(req.userId, req.params.id, { done, text })
+    const { done, text, weekStart, dueDate } = req.body || {}
+    const goal = await goalsService.updateGoal(req.userId, req.params.id, {
+      done,
+      text,
+      weekStart,
+      dueDate,
+    })
     res.json(goal)
   } catch (err) {
     next(err)
